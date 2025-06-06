@@ -55,11 +55,16 @@ func refreshLocalStatus() {
 func refreshRemoteStatus() {
 	StatusData.Lock()
 	defer StatusData.Unlock()
+	StatusData.Remote = make(map[string][]ServiceStatus)
+
 	for remoteName, services := range AppConfig.Status.Remote {
 		remote := findRemoteByName(remoteName)
 		if remote == nil {
+			AppLogger.Printf("[REMOTE STATUS] Remote not found: %s", remoteName)
 			continue
 		}
+
+		AppLogger.Printf("[REMOTE STATUS] Refreshing remote: %s", remoteName)
 		var statuses []ServiceStatus
 		for _, svc := range services {
 			active, uptime := checkRemoteServiceStatus(remote, svc)
