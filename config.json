@@ -1,0 +1,69 @@
+{
+  "server_ip": "0.0.0.0",
+  "server_port": "8443",
+  "tls_cert": "cert.pem",
+  "tls_key": "key.pem",
+  "sudo_user": "yourlinuxuser",
+  "sudo_password": "yourSudoPassword",
+
+  "users": [
+    {
+      "username": "admin",
+      "password": "adminpass",
+      "allowed_commands": ["*"]
+    },
+    {
+      "username": "limiteduser",
+      "password": "limitedpass",
+      "allowed_commands": ["Restart Plex", "Restart Web Nginx"]
+    }
+  ],
+
+  "remotes": [
+    {
+      "name": "Web Server",
+      "host": "192.168.1.100",
+      "user": "remoteuser1",
+      "password": "remotepassword1"
+    },
+    {
+      "name": "Database Server",
+      "host": "192.168.1.200",
+      "user": "remoteuser2",
+      "password": "remotepassword2"
+    }
+  ],
+
+  "commands": [
+    {
+      "name": "Restart Plex",
+      "type": "local",
+      "command": "systemctl restart plexmediaserver"
+    },
+    {
+      "name": "Restart Nginx",
+      "type": "local",
+      "command": "systemctl restart nginx && systemctl restart php8.2-fpm"
+    },
+    {
+      "name": "Restart Web Nginx",
+      "type": "remote",
+      "remote_name": "Web Server",
+      "command": "sudo systemctl restart nginx && sudo systemctl restart php8.2-fpm"
+    },
+    {
+      "name": "Restart Database",
+      "type": "remote",
+      "remote_name": "Database Server",
+      "command": "sudo systemctl restart mysql"
+    }
+  ],
+
+  "status": {
+    "local": ["plexmediaserver", "nginx"],
+    "remote": {
+      "Web Server": ["nginx"],
+      "Database Server": ["mysql"]
+    }
+  }
+}

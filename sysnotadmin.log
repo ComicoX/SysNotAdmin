@@ -1,0 +1,20 @@
+2025/06/06 23:15:17 ========== SysNotAdmin STARTED ==========
+2025/06/06 23:15:17 Time: Fri, 06 Jun 2025 23:15:17 EEST
+2025/06/06 23:15:17 [JAIL] Loaded 0 banned IPs
+2025/06/06 23:15:17 [JAIL] Saved 0 banned IPs
+2025/06/06 23:15:17 Starting server on 0.0.0.0:8080
+2025/06/06 23:15:17 Using HTTP
+2025/06/06 23:15:17 AUTO STATUS REFRESH
+2025/06/06 23:15:17 [REMOTE STATUS] SSH connection FAILED: remote=Web Server service=nginx ERR=dial tcp :22: connect: connection refused
+2025/06/06 23:15:22 LOGIN FAIL: user=s IP=127.0.0.1
+2025/06/06 23:15:22 [JAIL] Failed login from 127.0.0.1, count=1
+2025/06/06 23:15:25 LOGIN SUCCESS: user=a IP=127.0.0.1
+2025/06/06 23:15:47 ========== SysNotAdmin STARTED ==========
+2025/06/06 23:15:47 Time: Fri, 06 Jun 2025 23:15:47 EEST
+2025/06/06 23:15:47 [JAIL] Loaded 0 banned IPs
+2025/06/06 23:15:47 [JAIL] Saved 0 banned IPs
+2025/06/06 23:15:47 Starting server on 0.0.0.0:8080
+2025/06/06 23:15:47 Using HTTP
+2025/06/06 23:15:47 AUTO STATUS REFRESH
+2025/06/06 23:15:47 [REMOTE STATUS] SSH connection FAILED: remote=Web Server service=nginx ERR=dial tcp :22: connect: connection refused
+2025/06/06 23:15:50 LOGIN SUCCESS: user=a IP=127.0.0.1
