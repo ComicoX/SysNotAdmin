@@ -22,13 +22,13 @@
   "remotes": [
     {
       "name": "Web Server",
-      "host": "192.168.1.100",
+      "ip": "192.168.1.100",
       "user": "remoteuser1",
       "password": "remotepassword1"
     },
     {
       "name": "Database Server",
-      "host": "192.168.1.200",
+      "ip": "192.168.1.200",
       "user": "remoteuser2",
       "password": "remotepassword2"
     }

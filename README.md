@@ -46,13 +46,13 @@ Example config.json
   "remotes": [
     {
       "name": "Web Server",
-      "host": "192.168.1.100",
+      "ip": "192.168.1.100",
       "user": "remoteuser1",
       "password": "remotepassword1"
     },
     {
       "name": "Database Server",
-      "host": "192.168.1.200",
+      "ip": "192.168.1.200",
       "user": "remoteuser2",
       "password": "remotepassword2"
     }
@@ -131,6 +131,7 @@ WantedBy=multi-user.target
     Prepare directory:
     sudo mkdir -p /opt/sysnotadmin
     sudo cp sysnotadmin /opt/sysnotadmin/
+    sudo chmod +x sysnotadmin
     sudo cp config.json /opt/sysnotadmin/
     sudo cp jail.txt /opt/sysnotadmin/
     sudo cp -r templates /opt/sysnotadmin/
