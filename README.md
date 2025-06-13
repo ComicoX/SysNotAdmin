@@ -135,6 +135,7 @@ WantedBy=multi-user.target
     sudo cp config.json /opt/sysnotadmin/
     sudo cp jail.txt /opt/sysnotadmin/
     sudo cp -r templates /opt/sysnotadmin/
+    sudo cp -r static /opt/sysnotadmin/
     
     Set permissions
     sudo chown -R sysnotadmin:sysnotadmin /opt/sysnotadmin
