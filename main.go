@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"html/template"
 	"net/http"
+
+	"github.com/gorilla/csrf"
 )
 
 type ViewData struct {
@@ -59,6 +61,9 @@ func IndexHandler(w http.ResponseWriter, r *http.Request) {
 	tmpl.Execute(w, viewData)
 }
 
+var csrfKey []byte = generateRandomCSRFKey()
+var csrfMiddleware func(http.Handler) http.Handler
+
 func main() {
 	InitLogger()
 	LoadJail()
@@ -69,20 +74,30 @@ func main() {
 		AppLogger.Fatalf("Failed to load config: %v", err)
 	}
 
-	go StatusRefresher()
+	useHTTPS := AppConfig.TLSCert != "" && AppConfig.TLSKey != ""
 
-	http.HandleFunc("/", RequireLogin(IndexHandler))
-	http.HandleFunc("/login", LoginHandler)
-	http.HandleFunc("/logout", LogoutHandler)
-	http.HandleFunc("/run", RequireLogin(RunHandler))
-	http.HandleFunc("/refresh", RequireLogin(RefreshHandler))
-	http.HandleFunc("/status", RequireLogin(StatusAPIHandler))
+	if useHTTPS {
+		csrfOptions := []csrf.Option{
+			csrf.SameSite(csrf.SameSiteLaxMode),
+			csrf.Secure(true),
+		}
+		csrfMiddleware = csrf.Protect(csrfKey, csrfOptions...)
+		AppLogger.Printf("Using HTTPS — CSRF protection is enabled")
+	} else {
+		AppLogger.Printf("Using HTTP — CSRF protection is disabled")
+	}
+
+	http.Handle("/", ApplyMiddlewares(http.HandlerFunc(IndexHandler), true, true))
+	http.Handle("/login", ApplyMiddlewares(http.HandlerFunc(LoginHandler), true, false))
+	http.Handle("/logout", ApplyMiddlewares(http.HandlerFunc(LogoutHandler), false, false))
+	http.Handle("/run", ApplyMiddlewares(http.HandlerFunc(RunHandler), false, true))
+	http.Handle("/status", ApplyMiddlewares(http.HandlerFunc(StatusAPIHandler), false, true))
 	http.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("static"))))
 
 	address := fmt.Sprintf("%s:%s", AppConfig.ServerIP, AppConfig.ServerPort)
 	AppLogger.Printf("Starting server on %s", address)
 
-	if AppConfig.TLSCert != "" && AppConfig.TLSKey != "" {
+	if useHTTPS {
 		AppLogger.Printf("Using HTTPS cert %s key %s", AppConfig.TLSCert, AppConfig.TLSKey)
 		err = http.ListenAndServeTLS(address, AppConfig.TLSCert, AppConfig.TLSKey, nil)
 	} else {

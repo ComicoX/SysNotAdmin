@@ -1,10 +1,13 @@
 package main
 
 import (
+	"html/template"
 	"net"
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/gorilla/csrf"
 )
 
 const SessionCookieName = "sysnotadmin_session"
@@ -36,7 +39,7 @@ func GetUser(username string) *User {
 }
 
 func SetSession(w http.ResponseWriter, username string) {
-	sessionID := username + time.Now().Format(time.RFC3339Nano)
+	sessionID := GenerateSessionID()
 	Sessions[sessionID] = Session{
 		Username:  username,
 		ExpiresAt: time.Now().Add(SessionTimeout),
@@ -63,15 +66,15 @@ func GetSession(r *http.Request) *Session {
 	return &session
 }
 
-func RequireLogin(next http.HandlerFunc) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
+func RequireLogin(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		session := GetSession(r)
 		if session == nil {
 			http.Redirect(w, r, "/login", http.StatusFound)
 			return
 		}
-		next(w, r)
-	}
+		next.ServeHTTP(w, r)
+	})
 }
 
 func parseIP(remoteAddr string) string {
@@ -100,7 +103,6 @@ func parseIP(remoteAddr string) string {
 func LoginHandler(w http.ResponseWriter, r *http.Request) {
 	ip := parseIP(r.RemoteAddr)
 
-	// If IP is banned \u2192 send fake 404
 	if IsIPBanned(ip) {
 		AppLogger.Printf("[JAIL] BLOCKED attempt from banned IP: %s", ip)
 		http.NotFound(w, r)
@@ -122,7 +124,16 @@ func LoginHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	http.ServeFile(w, r, "templates/login.html")
+	tmpl := template.Must(template.ParseFiles("templates/login.html"))
+	tmpl.Execute(w, map[string]interface{}{
+		"csrfField": func() template.HTML {
+			if csrfMiddleware != nil {
+				AppLogger.Printf("Origin: %s | Referer: %s", r.Header.Get("Origin"), r.Header.Get("Referer"))
+				return csrf.TemplateField(r)
+			}
+			return ""
+		}(),
+	})
 }
 
 func LogoutHandler(w http.ResponseWriter, r *http.Request) {
