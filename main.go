@@ -16,19 +16,12 @@ type ViewData struct {
 	RemoteCommands map[string][]Command
 }
 
-func RefreshHandler(w http.ResponseWriter, r *http.Request) {
-	session := GetSession(r)
-	AppLogger.Printf("MANUAL REFRESH: user=%s IP=%s", session.Username, r.RemoteAddr)
-
-	refreshLocalStatus()
-	refreshRemoteStatus()
-
-	http.Redirect(w, r, "/", http.StatusSeeOther)
-}
-
 func IndexHandler(w http.ResponseWriter, r *http.Request) {
 	session := GetSession(r)
 	user := GetUser(session.Username)
+
+	refreshLocalStatus()
+	refreshRemoteStatus()
 
 	viewData := ViewData{
 		Username:       user.Username,

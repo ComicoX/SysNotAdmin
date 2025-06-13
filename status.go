@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"os/exec"
-	"strings"
+	"regexp"
 	"sync"
 	"time"
 
@@ -27,15 +27,6 @@ var (
 		Remote: make(map[string][]ServiceStatus),
 	}
 )
-
-func StatusRefresher() {
-	for {
-		AppLogger.Println("AUTO STATUS REFRESH")
-		refreshLocalStatus()
-		refreshRemoteStatus()
-		time.Sleep(30 * time.Minute)
-	}
-}
 
 func refreshLocalStatus() {
 	var statuses []ServiceStatus
@@ -64,10 +55,27 @@ func refreshRemoteStatus() {
 			continue
 		}
 
-		AppLogger.Printf("[REMOTE STATUS] Refreshing remote: %s", remoteName)
+		AppLogger.Printf("[REMOTE STATUS] Connecting to remote: %s", remoteName)
+
+		configSSH := &ssh.ClientConfig{
+			User: remote.User,
+			Auth: []ssh.AuthMethod{
+				ssh.Password(remote.Password),
+			},
+			HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+			Timeout:         5 * time.Second,
+		}
+
+		client, err := ssh.Dial("tcp", remote.Host+":22", configSSH)
+		if err != nil {
+			AppLogger.Printf("[REMOTE STATUS] SSH connection failed to %s: %v", remoteName, err)
+			continue
+		}
+		defer client.Close()
+
 		var statuses []ServiceStatus
 		for _, svc := range services {
-			active, uptime := checkRemoteServiceStatus(remote, svc)
+			active, uptime := checkRemoteServiceStatus(client, svc)
 			statuses = append(statuses, ServiceStatus{
 				Name:   svc,
 				Active: active,
@@ -78,104 +86,48 @@ func refreshRemoteStatus() {
 	}
 }
 
-func formatDuration(d time.Duration) string {
-	if d.Hours() >= 24 {
-		days := int(d.Hours()) / 24
-		hours := int(d.Hours()) % 24
-		return fmt.Sprintf("%dd %dh", days, hours)
-	} else if d.Hours() >= 1 {
-		return fmt.Sprintf("%.0fh %.0fm", d.Hours(), d.Minutes()-float64(int(d.Hours())*60))
-	} else if d.Minutes() >= 1 {
-		return fmt.Sprintf("%.0fm", d.Minutes())
-	} else {
-		return fmt.Sprintf("%.0fs", d.Seconds())
-	}
-}
-
 func checkLocalServiceStatus(service string) (bool, string) {
-	// Check active status
-	cmd := exec.Command("bash", "-c", fmt.Sprintf("systemctl is-active %s", service))
+	cmd := exec.Command("bash", "-c", fmt.Sprintf("systemctl status %s", service))
 	output, err := cmd.CombinedOutput()
-	active := err == nil && string(output) == "active\n"
+	if err != nil {
+		return false, "Failed to get status"
+	}
 
-	// Get timestamp
-	tsCmd := exec.Command("bash", "-c", fmt.Sprintf("systemctl show %s --property=ActiveEnterTimestamp", service))
-	tsOutput, _ := tsCmd.CombinedOutput()
+	status := string(output)
+	active := false
+	uptimeStr := "---"
 
-	tsLine := string(tsOutput)
-	tsLine = strings.TrimSpace(tsLine)
-	tsLine = strings.TrimPrefix(tsLine, "ActiveEnterTimestamp=")
-
-	uptimeStr := ""
-	if tsLine != "" && active {
-		// Parse timestamp
-		parsedTime, err := time.Parse("Mon 2006-01-02 15:04:05 MST", tsLine)
-		if err == nil {
-			duration := time.Since(parsedTime)
-			uptimeStr = formatDuration(duration)
-		} else {
-			uptimeStr = "unknown"
-		}
-	} else {
-		uptimeStr = "---"
+	activeRe := regexp.MustCompile(`(?m)^\s*Active:\s+active \(running\).*; (.+?) ago`)
+	match := activeRe.FindStringSubmatch(status)
+	if len(match) == 2 {
+		active = true
+		uptimeStr = match[1]
 	}
 
 	return active, "Uptime: " + uptimeStr
 }
 
-func checkRemoteServiceStatus(remote *Remote, service string) (bool, string) {
-	configSSH := &ssh.ClientConfig{
-		User: remote.User,
-		Auth: []ssh.AuthMethod{
-			ssh.Password(remote.Password),
-		},
-		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
-		Timeout:         5 * time.Second,
-	}
-
-	client, err := ssh.Dial("tcp", remote.Host+":22", configSSH)
-	if err != nil {
-		AppLogger.Printf("[REMOTE STATUS] SSH connection FAILED: remote=%s service=%s ERR=%v", remote.Name, service, err)
-		return false, "SSH_FAILED"
-	}
-	defer client.Close()
-
+func checkRemoteServiceStatus(client *ssh.Client, service string) (bool, string) {
 	session, err := client.NewSession()
 	if err != nil {
-		AppLogger.Printf("[REMOTE STATUS] Session FAILED: remote=%s service=%s ERR=%v", remote.Name, service, err)
-		return false, "SSH_FAILED"
+		return false, "SESSION_FAILED"
 	}
 	defer session.Close()
 
-	output, err := session.CombinedOutput(fmt.Sprintf("systemctl is-active %s", service))
-	active := err == nil && string(output) == "active\n"
-
-	// Get uptime
-	session2, err := client.NewSession()
+	output, err := session.CombinedOutput(fmt.Sprintf("systemctl status %s", service))
 	if err != nil {
-		AppLogger.Printf("[REMOTE STATUS] Session2 FAILED: remote=%s service=%s ERR=%v", remote.Name, service, err)
-		return active, "SSH_FAILED"
+		return false, "Failed to get status"
 	}
-	tsOutput, err := session2.CombinedOutput(fmt.Sprintf("systemctl show %s --property=ActiveEnterTimestamp", service))
-	session2.Close()
 
-	tsLine := string(tsOutput)
-	tsLine = strings.TrimSpace(tsLine)
-	tsLine = strings.TrimPrefix(tsLine, "ActiveEnterTimestamp=")
+	status := string(output)
+	active := false
+	uptimeStr := "---"
 
-	uptimeStr := ""
-	if tsLine != "" && active {
-		parsedTime, err := time.Parse("Mon 2006-01-02 15:04:05 MST", tsLine)
-		if err == nil {
-			duration := time.Since(parsedTime)
-			uptimeStr = formatDuration(duration)
-		} else {
-			uptimeStr = "unknown"
-		}
-	} else if err != nil {
-		uptimeStr = "SSH_FAILED"
-	} else {
-		uptimeStr = "---"
+	activeRe := regexp.MustCompile(`(?m)^\s*Active:\s+active \(running\).*; (.+?) ago`)
+	match := activeRe.FindStringSubmatch(status)
+	if len(match) == 2 {
+		active = true
+		uptimeStr = match[1]
 	}
 
 	return active, "Uptime: " + uptimeStr
@@ -188,7 +140,9 @@ func StatusAPIHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Build API payload
+	refreshLocalStatus()
+	refreshRemoteStatus()
+
 	StatusData.RLock()
 	payload := struct {
 		Local  []ServiceStatus
